@@ -15,6 +15,15 @@ fn parse_mti(input: &[u8]) -> Result<(&[u8], String), String> {
     }
 }
 
+fn parse_bitmap(input: &[u8]) -> Result<(&[u8], Vec<u8>), String> {
+    if input.len() < 8 {
+        return Err("Input too short to contain bitmap".to_string());
+    }
+
+    let bitmap = input[..8].to_vec();
+    Ok((&input[8..], bitmap))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -45,5 +54,39 @@ mod tests {
         let input = b"1234";
         let result = parse_mti(input);
         assert_eq!(result, Ok((&b""[..], "1234".to_string())))
+    }
+
+    #[test]
+    fn test_parse_bitmap_valid() {
+        let input = b"12345678rest_of_message";
+        let result = parse_bitmap(input);
+        assert_eq!(result, Ok((&b"rest_of_message"[..], b"12345678".to_vec())))
+    }
+
+    #[test]
+    fn test_parse_bitmap_too_short() {
+        let input = b"1234567";
+        let result = parse_bitmap(input);
+        assert_eq!(result, Err("Input too short to contain bitmap".to_string()));
+    }
+
+    #[test]
+    fn test_parse_bitmap_exact_length() {
+        let input = b"12345678";
+        let result = parse_bitmap(input);
+        assert_eq!(result, Ok((&b""[..], b"12345678".to_vec())))
+    }
+
+    #[test]
+    fn test_parse_bitmap_with_non_ascii() {
+        let input = b"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFFrest_of_message";
+        let result = parse_bitmap(input);
+        assert_eq!(
+            result,
+            Ok((
+                &b"rest_of_message"[..],
+                b"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF".to_vec()
+            ))
+        )
     }
 }
