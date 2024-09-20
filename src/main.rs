@@ -54,13 +54,33 @@ fn parse_mti(input: &[u8]) -> Result<(&[u8], String), String> {
     }
 }
 
+fn hex_to_bytes(hex: &[u8]) -> Result<Vec<u8>, String> {
+    if hex.len() % 2 != 0 {
+        return Err("Hex string has an odd number of characters".to_string());
+    }
+
+    let mut bytes = Vec::with_capacity(hex.len() / 2);
+    for i in (0..hex.len()).step_by(2) {
+        let byte_str = &hex[i..i + 2];
+        let byte = match std::str::from_utf8(byte_str) {
+            Ok(s) => u8::from_str_radix(s, 16).map_err(|_| "Invalid hex character".to_string())?,
+            Err(_) => return Err("Invalid UTF-8 sequence".to_string()),
+        };
+        bytes.push(byte);
+    }
+
+    Ok(bytes)
+}
+
 fn parse_bitmap(input: &[u8]) -> Result<(&[u8], Vec<u8>), String> {
-    if input.len() < 8 {
+    if input.len() < 16 {
         return Err("Input too short to contain bitmap".to_string());
     }
 
-    let bitmap = input[..8].to_vec();
-    Ok((&input[8..], bitmap))
+    let hex_bitmap = &input[..16];
+    let bitmap = hex_to_bytes(hex_bitmap)?;
+
+    Ok((&input[16..], bitmap))
 }
 
 // TODO: Assuming that the field length is specified as 2 digits
@@ -124,9 +144,12 @@ mod tests {
 
     #[test]
     fn test_parse_bitmap_valid() {
-        let input = b"12345678rest_of_message";
+        let input = b"4000000000000000rest_of_message";
         let result = parse_bitmap(input);
-        assert_eq!(result, Ok((&b"rest_of_message"[..], b"12345678".to_vec())))
+        assert_eq!(
+            result,
+            Ok((&b"rest_of_message"[..], vec![64, 0, 0, 0, 0, 0, 0, 0]))
+        )
     }
 
     #[test]
@@ -138,22 +161,16 @@ mod tests {
 
     #[test]
     fn test_parse_bitmap_exact_length() {
-        let input = b"12345678";
+        let input = b"4000000000000000";
         let result = parse_bitmap(input);
-        assert_eq!(result, Ok((&b""[..], b"12345678".to_vec())))
+        assert_eq!(result, Ok((&b""[..], vec![64, 0, 0, 0, 0, 0, 0, 0])))
     }
 
     #[test]
     fn test_parse_bitmap_with_non_ascii() {
         let input = b"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFFrest_of_message";
         let result = parse_bitmap(input);
-        assert_eq!(
-            result,
-            Ok((
-                &b"rest_of_message"[..],
-                b"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF".to_vec()
-            ))
-        )
+        assert_eq!(result, Err("Invalid UTF-8 sequence".to_string()))
     }
 
     #[test]
