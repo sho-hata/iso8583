@@ -1,5 +1,44 @@
+use std::collections::HashMap;
+
+struct Message {
+    mti: String,
+    bitmap: Vec<u8>,
+    fields: HashMap<u8, String>,
+}
+
 fn main() {
-    println!("Hello, world!");
+    let input_message = b"020011111111101234567890..."; // dummy
+    match parse_message(input_message) {
+        Ok(message) => {
+            println!("MTI: {}", message.mti);
+            println!("bitmap: {:?}", message.bitmap);
+            for (field_number, field_value) in message.fields {
+                println!("field {}: {}", field_number, field_value)
+            }
+        }
+        Err(e) => println!("Error parsing ISO8583 message {}", e),
+    }
+}
+
+#[allow(unused_assignments)]
+fn parse_message(input: &[u8]) -> Result<Message, String> {
+    let (input, mti) = parse_mti(input)?;
+    let (input, bitmap) = parse_bitmap(input)?;
+
+    let mut fields = HashMap::new();
+    let mut remaining = input;
+
+    // Treat dummy field number as 1
+    if let Ok((new_remaining, field_data)) = parse_variable_field(remaining) {
+        fields.insert(1, field_data);
+        remaining = new_remaining;
+    }
+
+    Ok(Message {
+        mti,
+        bitmap,
+        fields,
+    })
 }
 
 fn parse_mti(input: &[u8]) -> Result<(&[u8], String), String> {
